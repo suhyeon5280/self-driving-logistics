@@ -8,7 +8,7 @@ tu=turtle.Turtle()
 
 sn=turtle.Screen()
 
-sn.setup(500,500)
+sn.setup(600,600)
 
 for n in range(40):
 
