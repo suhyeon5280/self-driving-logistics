@@ -8,7 +8,11 @@ tu=turtle.Turtle()
 
 sn=turtle.Screen()
 
+<<<<<<< HEAD
 sn.setup(600,600)
+=======
+sn.setup(300,300)
+>>>>>>> master
 
 for n in range(40):
 
