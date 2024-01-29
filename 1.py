@@ -24,3 +24,4 @@ for n in range(40):
 
     tu.goto(x,y)
 
+print("개강싫어,,")
