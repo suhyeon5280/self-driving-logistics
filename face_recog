@@ -1,0 +1,125 @@
+import cv2
+import mediapipe as mp
+import tkinter as tk
+from tkinter import messagebox
+from PIL import Image, ImageTk
+import numpy as np
+import os
+
+# 얼굴 인식을 위한 MediaPipe와 OpenCV 설정
+mp_face_detection = mp.solutions.face_detection
+mp_drawing = mp.solutions.drawing_utils
+
+recognizer = cv2.face.LBPHFaceRecognizer_create()
+
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+trained_model_path = "trained_model.xml"
+captured_face_path = "captured_face.jpg"
+
+# Tkinter 창 설정
+class FaceCaptureApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Face Capture App")
+
+        # VideoCapture 설정
+        self.cap = cv2.VideoCapture(0)
+        self.face_detection = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
+
+        # Tkinter 위젯 설정
+        self.label = tk.Label(self.root)
+        self.label.pack()
+
+        self.capture_button = tk.Button(self.root, text="촬영", command=self.capture_face)
+        self.capture_button.pack(pady=10)
+
+        self.message_label = tk.Label(self.root, text="", font=("Helvetica", 16))
+        self.message_label.pack(pady=10)
+
+        if os.path.exists(trained_model_path):
+            recognizer.read(trained_model_path)
+
+        self.update_frame()
+
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if ret:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.face_detection.process(frame_rgb)
+
+            # 얼굴 인식된 부분을 그리기
+            if results.detections:
+                for detection in results.detections:
+                    bboxC = detection.location_data.relative_bounding_box
+                    ih, iw, _ = frame.shape
+                    x, y, w, h = int(bboxC.xmin * iw), int(bboxC.ymin * ih), int(bboxC.width * iw), int(bboxC.height * ih)
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            # 얼굴 인식 및 메시지 업데이트
+            self.recognize_face(frame_rgb)
+
+            # OpenCV 이미지 -> PIL 이미지
+            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.label.imgtk = imgtk
+            self.label.configure(image=imgtk)
+
+        self.root.after(10, self.update_frame) 
+
+    def capture_face(self):
+        ret, frame = self.cap.read()
+        if ret:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+            faces_data = []
+            labels = []
+
+            for (x, y, w, h) in faces:
+                face = gray[y:y + h, x:x + w]
+                faces_data.append(face)
+                labels.append(1)  # 현재 라벨은 1로 설정
+
+                cv2.imwrite(captured_face_path, face)
+
+            if faces_data:
+                # 현재 얼굴 데이터와 라벨을 불러옴
+                if os.path.exists(trained_model_path):
+                    recognizer.read(trained_model_path)
+
+                # 얼굴 데이터와 라벨 학습
+                recognizer.update(faces_data, np.array(labels))
+
+                # 학습된 모델 저장
+                recognizer.save(trained_model_path)
+                messagebox.showinfo("촬영 완료", "얼굴 사진이 저장되었습니다!")
+
+    def recognize_face(self, frame_rgb):
+        gray = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+        for (x, y, w, h) in faces:
+            face = gray[y:y + h, x:x + w]
+            try:
+                label, confidence = recognizer.predict(face)
+                if label == 1 and confidence < 50:
+                    self.message_label.config(text="사용자님 안녕하세요!")
+                    return
+            except cv2.error as e:
+                print(f"Error in prediction: {e}")
+
+        self.message_label.config(text="")
+
+    def __del__(self):
+        if self.cap.isOpened():
+            self.cap.release()
+
+
+def main():
+    root = tk.Tk()
+    app = FaceCaptureApp(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
